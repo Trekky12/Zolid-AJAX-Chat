@@ -27,7 +27,7 @@ if($request == 'clear_data_all') {
             $reply = "REQUEST $request FAILED";
             
             }
-    
+
     } else if ($request == 'clear_data_user') {
         
         $by = $_REQUEST['user'];
