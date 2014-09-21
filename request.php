@@ -5,10 +5,10 @@ $request = $_POST['request'];
 
 if(isset($request)) {
     
-$dbhost = 'localhost';
-$dbname = 'fvybyhuj_chat';
-$dbuser = 'fvybyhuj_support';
-$dbpass = 'ciccio.12345';
+$dbhost = 'localhost'; //Database Name, use localhost if hosted on the same machine
+$dbname = ''; //Database Name
+$dbuser = ''; //Database User
+$dbpass = ''; //Database Password
 
 $con = mysql_connect($dbhost,$dbuser,$dbpass) or die("MYSQL CONNECTION ERROR: " . mysql_error());
 
