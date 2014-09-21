@@ -6,6 +6,15 @@ This is an PHP + jQuery driven AJAX live chat or Shoutbox if you will. It comes 
 * Import the .sql file to your database
 * Edit the "livechat.processor.php" file with the SQL connection information.
 
+##Admin Installation
+1. Open the file "request.php"<br>
+2. From the line 11 to the line 14 you have to insert your database informations.
+
+
+Using a login system for this file is really suggested because this file is the one that handle the database requests. If you do not know how to create a login system you can found one here: http://www.php-login.net/
+
+The minimal version with some changes is enough to keep your database secure.
+
 ##Thanks
 * [Twitter Bootstrap](https://github.com/twitter/bootstrap)
 * [HTML Purifier](http://htmlpurifier.org/)
