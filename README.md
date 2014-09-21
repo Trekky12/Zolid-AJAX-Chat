@@ -15,6 +15,11 @@ Using a login system for "admin.php" and "request.php" is hightly suggested beca
 
 The minimal version with some changes is enough to keep your database secure.
 
+##Contact
+If you have feature requests, suggestions or other feel free to contact me on Twitter:
+
+https://twitter.com/stetto98
+
 ##Thanks
 * [Twitter Bootstrap](https://github.com/twitter/bootstrap)
 * [HTML Purifier](http://htmlpurifier.org/)
