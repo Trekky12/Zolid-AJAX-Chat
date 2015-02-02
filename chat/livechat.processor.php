@@ -70,6 +70,8 @@ class Chat
                                 );
         }
 
+        $this->setUsername();
+        $this->getUsername();
         $this->setRoom();
         $this->loadNewMessages();
         $this->sendMessage();
@@ -177,6 +179,26 @@ class Chat
 		
 		return $timest;
 	}
+  
+  
+    private function setUsername()
+    {
+        if( !empty($_POST['setUsername']) )
+        {
+            $username = $this->sanitize($_POST['setUsername'], 'purestring');
+            $_SESSION['chat']['username'] = $username;
+            echo json_encode($_SESSION['chat']['username']);
+            exit; 
+        }
+    }
+    
+    private function getUsername()
+    {
+        if( !empty($_POST['getUsername']) && $_POST['getUsername'] ){
+          echo json_encode($_SESSION['chat']['username']);
+          exit;
+        }
+    }
     
     private function setRoom()
     {

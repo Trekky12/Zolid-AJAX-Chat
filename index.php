@@ -25,7 +25,7 @@
                 
                     <div class="panel-header">
                         <i class="icon32-mailbox"></i>
-                        <span>Online Breeder Live Chat [<span id="curchatroom">Loading..</span>]</span>
+                        <span>Username: <input name="username" type="text" size="4" style="width:100px;"> [<span id="curchatroom">Loading..</span>]</span>
                         <div class="chatloader pull-right">
                             <img src="img/chatloader.gif" alt="">
                             Loading.. 
@@ -75,10 +75,11 @@
             $(document).obChat({
                 chatBox: '#chat_conversation', // The ID of the chatbox where the messages will be shown
                 msgForm: '#chat_newmsg', // The ID of the form for new chat messages
-                msgMax: 0, // The max messages to display in the chat at any time, 0 = no limit.
+                msgMax: 14, // The max messages to display in the chat at any time, 0 = no limit.
                 showLoader: true, // Show the "loader" when the script it querying for new messages or chaning room.
                 debug: true, // Show debugging information in the console
-                updateRate: 10000, // (milliseconds) How often the script will check for new messages. I recommend 7500 or more (7.5 sec).
+                updateRate: 7500, // (milliseconds) How often the script will check for new messages. I recommend 7500 or more (7.5 sec).
+                clearOnRefresh: false,
                 queryurl: 'chat/livechat.processor.php' // The url to the chat query php script.
             });
         });

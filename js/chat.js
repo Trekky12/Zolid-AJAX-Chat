@@ -19,6 +19,7 @@
                 debug: false,
                 showLoader: true,
                 updateRate: 5000,
+                clearOnRefresh: false,
                 queryurl: ''
             },
                 mc = 0,
@@ -75,10 +76,9 @@
                         if (typeof msg.user !== 'undefined') {
                             mc += 1;
                             $(options.chatBox).append('<div class="well well-small">[' + msg.time + '] <span class="label ' + msg.highlight + '">' + msg.user + '</span>: ' + msg.msg + '</div>');
-
                             if (mc >= data.totalnew) {
-                                if (options.msgMax > 0 && $(options.chatBox).children("div").length > options.msgMax) {
-                                    $(options.chatBox).children("div").slice(-($(options.chatBox).children("div").length - options.msgMax)).fadeOut(400).delay(400).remove();
+                                if (options.msgMax > 0 && $(options.chatBox).children("div").length > options.msgMax) {        
+                                    $(options.chatBox).children("div").slice(0, ($(options.chatBox).children("div").length - options.msgMax)).fadeOut(400).delay(400).remove();
                                 }
 
                                 scrollDown($(options.chatBox));
@@ -115,7 +115,7 @@
                         $('#curchatroom').html(reply.room);
 
                         if (reply.status) {
-                            addMessages(reply, all);
+                            addMessages(reply, options.clearOnRefresh);
                         } else if (clear) {
                             $(options.chatBox).html('');
                         }
@@ -135,6 +135,9 @@
             }
 
             $(document).ready(function () {
+            
+                $(options.msgForm + ' input[name=\'message\']').focus();
+                       
                 $(options.msgForm + ' button[type=\'submit\']').click(function (e) {
                     var send = $(this);
                     if ($(options.msgForm + ' input[name=\'message\']').val() === '') {
@@ -152,6 +155,7 @@
                         success: function (reply) {
                             addMessages(reply, false, true); //add ghost message until chat loads
                             $(options.msgForm + ' input[name=\'message\']').val('');
+                            $(options.msgForm + ' input[name=\'message\']').focus();
                             debug('message sent');
                             send.attr('disabled', false);
                         },
@@ -163,6 +167,45 @@
                     });
                     e.preventDefault();
                     return false;
+                });
+                
+                
+                /* get Username */
+                $.ajax({
+                    url: options.queryurl,
+                    type: 'POST',
+                    data: 'getUsername=true',
+                    dataType: "json",
+                    success: function (reply) {
+                        debug('[GetUsername] Response received:');
+                        debug(reply);
+                        $("input[name='username']").val(reply);
+                    },
+                    error: function (xhr, ajaxOptions, thrownError) {
+                        debug(xhr.responseText);
+                        debug('error getting username');
+                    }
+                });
+                
+                /* set Username */
+                
+                $( "input[name='username']" ).change(function() {
+                      // Check input( $( this ).val() ) for validity here
+                       $.ajax({
+                        url: options.queryurl,
+                        type: 'POST',
+                        data: 'setUsername='+$( this ).val(),
+                        dataType: "json",
+                        success: function (reply) {
+                            debug('[SetUsername] Response received:');
+                            debug(reply);
+                            $("input[name='username']").val(reply);
+                        },
+                        error: function (xhr, ajaxOptions, thrownError) {
+                            debug(xhr.responseText);
+                            debug('error setting username');
+                        }
+                    });
                 });
 
                 debug('Live Chat initiated.');
