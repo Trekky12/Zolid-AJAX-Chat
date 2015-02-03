@@ -8,6 +8,9 @@
   * http://www.opensource.org/licenses/mit-license.php
   */
 
+
+date_default_timezone_set("Europe/Berlin");
+
 class Chat
 {
     // Add any words you wish to filter out to this array.
@@ -54,9 +57,9 @@ class Chat
         {
             die($this->lang['core']['classes']['core']['mysql_error']);
 		}
-        
-        
-        session_start();
+    
+    
+        session_start();    
         if( empty($_SESSION['chat']) )
         {
             $_SESSION['chat'] = array(
@@ -68,8 +71,13 @@ class Chat
                                     'latest_time' => 0, // Used initially to retrive messages from the time the user enters the chat.
                                     'room' => $this->rooms[0]
                                 );
+                                
         }
-
+        
+        if( !empty($_COOKIE["username"]) ){
+             $_SESSION['chat']['username'] = $_COOKIE["username"];
+        }
+      
         $this->setUsername();
         $this->getUsername();
         $this->setRoom();
@@ -186,6 +194,7 @@ class Chat
         if( !empty($_POST['setUsername']) )
         {
             $username = $this->sanitize($_POST['setUsername'], 'purestring');
+            setcookie("username", $username, time()+ 24*3600);
             $_SESSION['chat']['username'] = $username;
             echo json_encode($_SESSION['chat']['username']);
             exit; 
@@ -217,34 +226,41 @@ class Chat
     {
         if( $reload || !empty($_POST['load']) && $_POST['load'] )
         {
-            // If this is the first time the user quries for messages, we need to add the time to the session, so we know from when to look
-            if( empty($_SESSION['chat']['latest_time']) )
-            {
-                $_SESSION['chat']['latest_time'] = time();
-            }
-
-            // Prepare to sql statement, and if no messages has been found, we check using the current time as it will only fetch messages from when the user joined.
-            $stmt = $this->sql->prepare('SELECT 
-                                                *
-                                            FROM 
-                                                chat
-                                            WHERE
-                                                room = :room
-                                            AND
-                                                ' . 
-                                                ( 
-                                                    ( $reload || !empty($_POST['all']) && $_POST['all'] == 'true' ) || empty($_SESSION['chat']['latest_id']) 
-                                                    ?
-                                                        ' time > :checkval ' 
-                                                    : 
-                                                        ' id > :checkval '
-                                                )
-                                            );
+        
+            $sqlstmt = '';
+            $checkval = '';
+            if( ( $reload || !empty($_POST['all']) && $_POST['all'] == 'true' ) || empty($_SESSION['chat']['latest_id']) ){
+                $sqlstmt = '( SELECT 
+                                  *
+                              FROM 
+                                  chat
+                              WHERE
+                                  room = :room
+                              ORDER BY 
+                                  time DESC 
+                              LIMIT 14 )
+                              ORDER BY time ASC ';
             
-            $checkval = ( ( $reload || !empty($_POST['all']) && $_POST['all'] == 'true' ) || empty($_SESSION['chat']['latest_id']) ? $_SESSION['chat']['latest_time']  : $_SESSION['chat']['latest_id'] );
+            }else{
+              $sqlstmt = 'SELECT 
+                                *
+                            FROM 
+                                chat
+                            WHERE
+                                room = :room
+                            AND
+                                id > :checkval ';
+            $checkval = $_SESSION['chat']['latest_id'];
+            }
+            // Prepare to sql statement, and if no messages has been found, we check using the current time as it will only fetch messages from when the user joined.
+            $stmt = $this->sql->prepare($sqlstmt);
+            
+            //$checkval = ( ( $reload || !empty($_POST['all']) && $_POST['all'] == 'true' ) || empty($_SESSION['chat']['latest_id']) ? $_SESSION['chat']['latest_time']  : $_SESSION['chat']['latest_id'] );
             
             $stmt->bindValue(':room', $_SESSION['chat']['room'], PDO::PARAM_STR);
-            $stmt->bindValue(':checkval', $checkval, PDO::PARAM_INT);
+            if($checkval != ''){
+                $stmt->bindValue(':checkval', $checkval, PDO::PARAM_INT);
+            }
             $stmt->execute();
 
             // Create the messages array which we will send back to the user.
@@ -254,6 +270,7 @@ class Chat
                             'room' => $_SESSION['chat']['room']
                         );
             $c = 0;
+
 
             // If there are any new messages, get 'em!
             if( $stmt->rowCount() > 0 )
@@ -282,6 +299,12 @@ class Chat
 
             $messages['totalnew'] = $c;
             $_SESSION['chat']['last_check'] = time();
+		
+	    // If this is the first time the user quries for messages, we need to add the time to the session, so we know from when to look
+            if( empty($_SESSION['chat']['latest_time']) )
+            {
+                $_SESSION['chat']['latest_time'] = time();
+            }
 
             echo json_encode($messages);
             exit;
