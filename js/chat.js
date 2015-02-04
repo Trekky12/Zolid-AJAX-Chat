@@ -1,17 +1,17 @@
- /*!
-  * Zolid AJAX Chat v0.1.0
-  * http://zolidweb.com
-  * 
-  * Copyright (c) 2010 Mark Eliasen
-  * Licensed under the MIT licenses.
-  * http://www.opensource.org/licenses/mit-license.php
-  */
+/*!
+ * Zolid AJAX Chat v0.1.0
+ * http://zolidweb.com
+ * 
+ * Copyright (c) 2010 Mark Eliasen
+ * Licensed under the MIT licenses.
+ * http://www.opensource.org/licenses/mit-license.php
+ */
 
-(function ($) {
+(function($) {
     'use strict';
 
     $.fn.extend({
-        obChat: function (options) {
+        obChat: function(options) {
             var settings = {
                 chatBox: '',
                 msgForm: '',
@@ -20,14 +20,15 @@
                 showLoader: true,
                 updateRate: 5000,
                 clearOnRefresh: false,
+                userBox: '',
                 queryurl: ''
             },
-                mc = 0,
-                timer = null,
-                ntfc = null,
-                chatRoom = null;
+            mc = 0,
+                    timer = null,
+                    ntfc = null,
+                    chatRoom = null;
 
-            options =  $.extend(settings, options);
+            options = $.extend(settings, options);
 
             function debug(msg) {
                 if (options.debug && typeof console === "object") {
@@ -70,14 +71,14 @@
                     $(options.chatBox).append('<div class="well well-small ghostmessage">[' + data.time + '] <span class="label ' + data.highlight + '">' + data.user + '</span>: ' + data.msg + '</div>');
                     scrollDown($(options.chatBox));
                 } else {
-                    $.each(data, function (i, msg) {
+                    $.each(data, function(i, msg) {
                         $('.ghostmessage').remove();
 
                         if (typeof msg.user !== 'undefined') {
                             mc += 1;
                             $(options.chatBox).append('<div class="well well-small">[' + msg.time + '] <span class="label ' + msg.highlight + '">' + msg.user + '</span>: ' + msg.msg + '</div>');
                             if (mc >= data.totalnew) {
-                                if (options.msgMax > 0 && $(options.chatBox).children("div").length > options.msgMax) {        
+                                if (options.msgMax > 0 && $(options.chatBox).children("div").length > options.msgMax) {
                                     $(options.chatBox).children("div").slice(0, ($(options.chatBox).children("div").length - options.msgMax)).fadeOut(400).delay(400).remove();
                                 }
 
@@ -107,7 +108,7 @@
                     type: 'POST',
                     data: 'load=true&all=' + all,
                     dataType: "json",
-                    success: function (reply) {
+                    success: function(reply) {
                         debug('[loadMessages] Response received:');
                         debug(reply);
 
@@ -122,9 +123,38 @@
 
                         hideLoader();
                     },
-                    error: function (xhr, ajaxOptions, thrownError) {
+                    error: function(xhr, ajaxOptions, thrownError) {
                         debug('[loadMessages] Error: ' + xhr.responseText);
                         stopChat();
+                    }
+                });
+
+
+                $.ajax({
+                    url: options.queryurl,
+                    type: 'POST',
+                    data: 'getActive=true',
+                    dataType: "json",
+                    success: function(reply) {
+                        //debug(reply);
+                        $(options.userBox).html('');
+                        $(options.userBox +' [data-toggle="tooltip"]').tooltip('destroy')
+                        $.each(reply, function(i, msg) {
+                            if (typeof msg.user !== 'undefined') {
+                                
+                               if(msg.since > 30){
+                                    $(options.userBox).append('<li class="list-group-item list-group-item-danger" data-toggle="tooltip" data-placement="top" title="'+msg.time+'">' + msg.user + '</li>');
+                               }else{
+                                   $(options.userBox).append('<li class="list-group-item list-group-item-success" data-toggle="tooltip" data-placement="top" title="'+msg.time+'">' + msg.user + '</li>');
+                               }
+                            }
+                            
+                        });
+                        $(options.userBox + ' [data-toggle="tooltip"]').tooltip({container: 'body'});
+                    },
+                    error: function(xhr, ajaxOptions, thrownError) {
+                        debug(xhr.responseText);
+                        debug('error getting active users');
                     }
                 });
             }
@@ -132,13 +162,15 @@
             function init() {
                 debug('Chat Initiated.');
                 timer = setInterval(loadMessages, options.updateRate);
+                
             }
 
-            $(document).ready(function () {
-            
+            $(document).ready(function() {
+                
+                
                 $(options.msgForm + ' input[name=\'message\']').focus();
-                       
-                $(options.msgForm + ' button[type=\'submit\']').click(function (e) {
+
+                $(options.msgForm + ' button[type=\'submit\']').click(function(e) {
                     var send = $(this);
                     if ($(options.msgForm + ' input[name=\'message\']').val() === '') {
                         debug('Cannot send empty messages');
@@ -152,14 +184,14 @@
                         type: 'POST',
                         data: $(options.msgForm).serialize() + '&new=true',
                         dataType: "json",
-                        success: function (reply) {
+                        success: function(reply) {
                             addMessages(reply, false, true); //add ghost message until chat loads
                             $(options.msgForm + ' input[name=\'message\']').val('');
                             $(options.msgForm + ' input[name=\'message\']').focus();
                             debug('message sent');
                             send.attr('disabled', false);
                         },
-                        error: function (xhr, ajaxOptions, thrownError) {
+                        error: function(xhr, ajaxOptions, thrownError) {
                             debug(xhr.responseText);
                             debug('error sending message');
                             send.attr('disabled', false);
@@ -168,54 +200,16 @@
                     e.preventDefault();
                     return false;
                 });
-                
-                
-                /* get Username */
-                $.ajax({
-                    url: options.queryurl,
-                    type: 'POST',
-                    data: 'getUsername=true',
-                    dataType: "json",
-                    success: function (reply) {
-                        debug('[GetUsername] Response received:');
-                        debug(reply);
-                        $("input[name='username']").val(reply);
-                    },
-                    error: function (xhr, ajaxOptions, thrownError) {
-                        debug(xhr.responseText);
-                        debug('error getting username');
-                    }
-                });
-                
-                /* set Username */
-                
-                $( "input[name='username']" ).change(function() {
-                      // Check input( $( this ).val() ) for validity here
-                       $.ajax({
-                        url: options.queryurl,
-                        type: 'POST',
-                        data: 'setUsername='+$( this ).val(),
-                        dataType: "json",
-                        success: function (reply) {
-                            debug('[SetUsername] Response received:');
-                            debug(reply);
-                            $("input[name='username']").val(reply);
-                        },
-                        error: function (xhr, ajaxOptions, thrownError) {
-                            debug(xhr.responseText);
-                            debug('error setting username');
-                        }
-                    });
-                });
+
 
                 debug('Live Chat initiated.');
                 loadMessages(true);
                 init();
 
                 /* 
-                    Chat Settings 
-                */
-                $('#chatroom li a').click(function (e) {
+                 Chat Settings 
+                 */
+                $('#chatroom li a').click(function(e) {
                     if ($(this).attr('data-room') === 'undefined') {
                         return false;
                     }
@@ -233,7 +227,7 @@
                         type: 'POST',
                         data: 'setroom=' + $(this).attr('data-room'),
                         dataType: "json",
-                        success: function (reply) {
+                        success: function(reply) {
                             debug('[SetSettings] Response received:');
                             debug(reply);
                             $('#chatroom li a i.icon-chevron-right').removeClass('icon-chevron-right');
@@ -249,7 +243,7 @@
 
                             init();
                         },
-                        error: function (xhr, ajaxOptions, thrownError) {
+                        error: function(xhr, ajaxOptions, thrownError) {
                             debug(xhr.responseText);
                             debug('error sending message');
                         }

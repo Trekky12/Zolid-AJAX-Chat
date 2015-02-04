@@ -1,3 +1,4 @@
+<?php ini_set('session.use_trans_sid', 1); session_start(); ?>
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -18,23 +19,29 @@
 	<body>
     
 		<div class="container">
+    
+    
         
             <div class="row">
             
                 <div class="md12 panel">
-                
                     <div class="panel-header">
+                    <?php if(!empty($_SESSION["LoggedIn"]) && $_SESSION["LoggedIn"] == 1 && !empty($_SESSION['username'])){ ?>
                         <i class="icon32-mailbox"></i>
-                        <span>Username: <input name="username" type="text" size="4" style="width:100px;" class="form-control" > [<span id="curchatroom">Loading..</span>]</span>
+                        [<span id="curchatroom">Loading..</span>] <button id="logout" class="btn btn-primary pull-right">Logout</button>
                         <div class="chatloader pull-right">
                             <img src="img/chatloader.gif" alt="">
                             Loading.. 
                         </div>
+                         <?php } ?>
                     </div>
                     
                     <div class="panel-body">
+                    
+                      <?php if(!empty($_SESSION["LoggedIn"]) && $_SESSION["LoggedIn"] == 1 && !empty($_SESSION['username'])){ ?>
                         <!-- The actual Chat -->
-                        <div id="chat_conversation"></div>
+                        <div id="chat_conversation" class="col-md-10 col-xs-9"></div>
+                        <div class="col-md-2 col-xs-3"><ul class="list-group" id="online_users" ></ul></div>
                         <div>
                             <form id="chat_newmsg" class="row form" action="#" onsubmit="return false;">
 
@@ -62,6 +69,28 @@
                             </form>
                         </div>
                         <!-- End of the chat -->
+                        <?php }else{ ?>
+                               <div class="col-md-12">
+                                <div id="output" class="alert" role="alert"></div>
+                                <form method="post" class="form-horizontal" id="registerForm">
+                                    <div class="form-group">
+                                        <label for="username">Username:</label>
+                                        <input type="text" class="form-control" name="username" id="username" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="control-label">Password:</label>
+                                        <div class="controls">
+                                            <input type="password" class="form-control"  name="password" id="password" />
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="controls">
+                                            <input type="submit" name="login" value="Login" class="btn btn-primary" />
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        <?php } ?>
                     </div>
                     
                 </div>
@@ -72,26 +101,37 @@
         
         <!-- jQuery -->
         <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-        
+                            
         <!-- Twitter Bootstrap -->
         <script type="text/javascript" src="js/bootstrap.min.js?v=332"></script>
         
         <!-- The chat -->
         <script type="text/javascript" src="js/chat.js?v=010"></script>
+        <script type="text/javascript" src="js/login.js?v=001"></script>
         <script type="text/javascript">
         $(document).ready(function(){
+            $(document).LoginModule({
+                loginForm: '#registerForm', // The ID of the Login Form
+                output : '#output',
+                logout : '#logout',
+                debug: false, // Show debugging information in the console
+                queryurl: 'chat/livechat.user.php' // The url to the chat query php script.
+            });
+            
+            <?php if(!empty($_SESSION["LoggedIn"]) &&$_SESSION["LoggedIn"] == 1 && !empty($_SESSION['username'])){ ?>
             $(document).obChat({
                 chatBox: '#chat_conversation', // The ID of the chatbox where the messages will be shown
                 msgForm: '#chat_newmsg', // The ID of the form for new chat messages
                 msgMax: 0, // The max messages to display in the chat at any time, 0 = no limit.
                 showLoader: true, // Show the "loader" when the script it querying for new messages or chaning room.
-                debug: false, // Show debugging information in the console
+                debug: true, // Show debugging information in the console
                 updateRate: 7500, // (milliseconds) How often the script will check for new messages. I recommend 7500 or more (7.5 sec).
                 clearOnRefresh: false,
+                userBox: '#online_users',
                 queryurl: 'chat/livechat.processor.php' // The url to the chat query php script.
-            });
+            });   
+            <?php } ?>        
         });
         </script>
-
     </body>
 </html>

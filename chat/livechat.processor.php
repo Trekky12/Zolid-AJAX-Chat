@@ -1,90 +1,73 @@
 <?php
- /*
-  * Zolid AJAX Chat v0.1.0
-  * http://zolidweb.com
-  * 
-  * Copyright (c) 2010 Mark Eliasen
-  * Licensed under the MIT licenses.
-  * http://www.opensource.org/licenses/mit-license.php
-  */
 
-
+/*
+ * Zolid AJAX Chat v0.1.0
+ * http://zolidweb.com
+ * 
+ * Copyright (c) 2010 Mark Eliasen
+ * Licensed under the MIT licenses.
+ * http://www.opensource.org/licenses/mit-license.php
+ */
+include_once('../conf/config.php');
+ini_set('session.use_trans_sid', 1);
 date_default_timezone_set("Europe/Berlin");
 
-class Chat
-{
+class Chat {
+
     // Add any words you wish to filter out to this array.
     protected $profanity = array('Badword1', 'Badword2', 'badword3');
-    
     // This is the chatrooms which the user can choose from.
     protected $rooms = array('General', 'Help', 'Off Topic');
-    
     // This will hold the PDO object.
     protected $sql;
-    
     // This is the connection details for the database where you store your messages.
-    private $config = array(
-                            'type' => 'mysql',
-                            'host' => 'localhost',
-                            'port' => '3306',
-                            'database' => '',
-                            'user' => '',
-                            'password' => '',
-                            'charset' => 'utf8',
-                        );
-    
-    public function __construct()
-    {
+    private $config;
+
+    public function __construct() {
+
+        $this->config = new Config();
+
         // Try to connect to the SQL database
-        try{
-			$sql = new PDO(
-				$this->config['type'] . ':' .
-                'host=' . $this->config['host'] .
-                ';port=' . $this->config['port'] .
-                ';dbname=' . $this->config['database'] .
-                ';charset=' . $this->config['charset'],
-                $this->config['user'],
-                $this->config['password'],
-                array(
-                    PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES "utf8"',
-					PDO::ATTR_EMULATE_PREPARES => false
-                )
+        try {
+            $sql = new PDO(
+                    $this->config->DB_TYPE . ':' .
+                    'host=' . $this->config->DB_HOST .
+                    ';port=' . $this->config->DB_PORT .
+                    ';dbname=' . $this->config->DB_DATABASE .
+                    ';charset=' . $this->config->DB_CHARSET, $this->config->DB_USER, $this->config->DB_PASSWORD, array(
+                PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES "utf8"',
+                PDO::ATTR_EMULATE_PREPARES => false
+                    )
             );
-			
+
+
             $this->sql = $sql;
-        }
-		catch(PDOException $pe)
-        {
+        } catch (PDOException $pe) {
             die($this->lang['core']['classes']['core']['mysql_error']);
-		}
-    
-    
-        session_start();    
-        if( empty($_SESSION['chat']) )
-        {
+        }
+
+
+        session_start();
+
+        if (empty($_SESSION['chat'])) {
             $_SESSION['chat'] = array(
-                                    'username' => uniqid('user_'),
-                                    'filter' => true,
-                                    'last_message' => 0, // Used with the anti-spam.
-                                    'last_check' => 0, // Used with the anti-spam.
-                                    'latest_id' => 0, // Used once messages have been found to make sure we do not miss any new once next time.
-                                    'latest_time' => 0, // Used initially to retrive messages from the time the user enters the chat.
-                                    'room' => $this->rooms[0]
-                                );
-                                
+                'username' => $_SESSION['username'], //uniqid('user_'),
+                'filter' => true,
+                'last_message' => 0, // Used with the anti-spam.
+                'last_check' => 0, // Used with the anti-spam.
+                'latest_id' => 0, // Used once messages have been found to make sure we do not miss any new once next time.
+                'latest_time' => 0, // Used initially to retrive messages from the time the user enters the chat.
+                'room' => $this->rooms[0]
+            );
         }
-        
-        if( !empty($_COOKIE["username"]) ){
-             $_SESSION['chat']['username'] = $_COOKIE["username"];
-        }
-      
-        $this->setUsername();
-        $this->getUsername();
+
         $this->setRoom();
         $this->loadNewMessages();
         $this->sendMessage();
+
+        $this->getActive();
     }
-    
+
     /**
      * Value sanitation. Sanitize input and output with ease using one of the sanitation types below.
      * 
@@ -92,144 +75,142 @@ class Chat
      * @param  string $type the type of sanitation you wish to use.
      * @return string       the sanitized string
      */
-    public function sanitize($data, $type = '')
-    {
-		## Use the HTML Purifier, as it help remove malicious scripts and code. ##
-		##       HTML Purifier 4.4.0 - Standards Compliant HTML Filtering       ##
-		require_once('htmlpurifier/HTMLPurifier.standalone.php');
+    public function sanitize($data, $type = '') {
+        ## Use the HTML Purifier, as it help remove malicious scripts and code. ##
+        ##       HTML Purifier 4.4.0 - Standards Compliant HTML Filtering       ##
+        require_once('htmlpurifier/HTMLPurifier.standalone.php');
 
-		$purifier = new HTMLPurifier();
-		$config = HTMLPurifier_Config::createDefault();
-		$config->set('Core.Encoding', 'UTF-8');
-        
+        $purifier = new HTMLPurifier();
+        $config = HTMLPurifier_Config::createDefault();
+        $config->set('Core.Encoding', 'UTF-8');
+
         // If no type if selected, it will simply run it through the HTML purifier only.
-		switch($type){
+        switch ($type) {
             // Remove HTML tags (can have issues with invalid tags, keep that in mind!)
-			case 'purestring':
-				$data = strip_tags( $data );
-				break;
-			
+            case 'purestring':
+                $data = strip_tags($data);
+                break;
+
             // Only allow a-z (H & L case)
-			case 'atoz':
-				$data = preg_replace( '/[^a-zA-Z]+/', '',  $data );
-				break;
-			
+            case 'atoz':
+                $data = preg_replace('/[^a-zA-Z]+/', '', $data);
+                break;
+
             // Integers only - Remove any non 0-9 and use Intval() to make sure it is an integer which comes out.
-			case 'integer':
-				$data = intval( preg_replace( '/[^0-9]+/', '',  $data ) );
-				break;
-		}
-		
+            case 'integer':
+                $data = intval(preg_replace('/[^0-9]+/', '', $data));
+                break;
+        }
+
         /* HTML purifier to help prevent XSS in case anything slipped through. */
-        $data = $purifier->purify( $data );
+        $data = $purifier->purify($data);
 
-		return $data;
-	}
-    
-    Protected function profanityFilter($message)
-    {
-        return preg_replace('('.implode('|', $this->profanity).')i', '[Censured]', $message);
+        return $data;
     }
-    
-    public function timeSince($unix)
-    {
-		$min = 60;
-		$hour = 3600;
-		$day = 86400;
-		
-		$diff = time() - $unix;
-		$diff2 = $diff;
 
-		$days = floor($diff / $day);
-		$days = floor($diff / $day);
-		$diff = $diff - ($day * $days);
-		$hours = floor($diff / $hour);
-		$diff = $diff - ($hour * $hours);
-		$minutes = floor($diff / $min);
-		$diff = $diff - ($min * $minutes);
-		$seconds = $diff;
-		
-		$m = ( $minutes == 1 ? ' minute' : ' minutes' );
-		$h = ( $hours == 1 ? ' hour' : ' hours' );
-		$d = ( $days == 1 ? ' day' : ' days' );
-
-		if( $diff2 < 60 )
-        {
-			$timest = $diff . ' seconds ago.';
-        }
-        else
-        {
-			if( $minutes >= 1 )
-            {
-				$timest = $minutes . $m . ' ago';
-			}
-            
-			if( $hours >= 1 )
-            {
-				$timest = $hours . $h . ' ago';
-			}
-            
-			if( $days >= 1 )
-            {
-				$timest = $days . $d . ' ago';
-			}
-            
-			if( !isset($timest) )
-            {
-				$timest = '';
-			}
-		}
-
-		if( $timest == '' )
-        {
-			$timest = 'just a second ago.';
-		}
-		
-		return $timest;
-	}
-  
-  
-    private function setUsername()
-    {
-        if( !empty($_POST['setUsername']) )
-        {
-            $username = $this->sanitize($_POST['setUsername'], 'purestring');
-            setcookie("username", $username, time()+ 24*3600);
-            $_SESSION['chat']['username'] = $username;
-            echo json_encode($_SESSION['chat']['username']);
-            exit; 
-        }
+    Protected function profanityFilter($message) {
+        return preg_replace('(' . implode('|', $this->profanity) . ')i', '[Censured]', $message);
     }
-    
-    private function getUsername()
-    {
-        if( !empty($_POST['getUsername']) && $_POST['getUsername'] ){
-          echo json_encode($_SESSION['chat']['username']);
-          exit;
+
+    public function timeSince($unix) {
+        $min = 60;
+        $hour = 3600;
+        $day = 86400;
+
+        $diff = time() - $unix;
+        $diff2 = $diff;
+
+        $days = floor($diff / $day);
+        $days = floor($diff / $day);
+        $diff = $diff - ($day * $days);
+        $hours = floor($diff / $hour);
+        $diff = $diff - ($hour * $hours);
+        $minutes = floor($diff / $min);
+        $diff = $diff - ($min * $minutes);
+        $seconds = $diff;
+
+        $m = ( $minutes == 1 ? ' minute' : ' minutes' );
+        $h = ( $hours == 1 ? ' hour' : ' hours' );
+        $d = ( $days == 1 ? ' day' : ' days' );
+
+        if ($diff2 < 60) {
+            $timest = $diff . ' seconds ago.';
+        } else {
+            if ($minutes >= 1) {
+                $timest = $minutes . $m . ' ago';
+            }
+
+            if ($hours >= 1) {
+                $timest = $hours . $h . ' ago';
+            }
+
+            if ($days >= 1) {
+                $timest = $days . $d . ' ago';
+            }
+
+            if (!isset($timest)) {
+                $timest = '';
+            }
         }
+
+        if ($timest == '') {
+            $timest = 'just a second ago.';
+        }
+
+        return $timest;
     }
-    
-    private function setRoom()
-    {
-        if( !empty($_POST['setroom']) )
-        {
+
+    private function setRoom() {
+        if (!empty($_POST['setroom'])) {
             $room = $this->sanitize($_POST['setroom'], 'purestring');
-            if( in_array($room, $this->rooms) )
-            {
+            if (in_array($room, $this->rooms)) {
                 $_SESSION['chat']['room'] = $room;
-                $this->loadNewMessages( true ); 
+                $this->loadNewMessages(true);
             }
         }
     }
-    
-    private function loadNewMessages( $reload = false )
-    {
-        if( $reload || !empty($_POST['load']) && $_POST['load'] )
-        {
-        
+
+    private function setActive() {
+        if (!empty($_SESSION['userid'])) {
+            $stmt = $this->sql->prepare('UPDATE chat_users SET `last_active` = :last_active WHERE `userid` = :userid');
+            $stmt->bindValue(':last_active', time(), PDO::PARAM_INT);
+            $stmt->bindValue(':userid', $_SESSION['userid'], PDO::PARAM_INT);
+            $stmt->execute();
+            $stmt->closeCursor();
+        }
+    }
+
+    public function getActive() {
+
+        if (!empty($_POST['getActive'])) {
+            $stmt = $this->sql->prepare('SELECT username, last_active FROM chat_users WHERE username != :username');
+            $stmt->bindValue(':username', $_SESSION['chat']['username'], PDO::PARAM_STR);
+            $stmt->execute();
+
+            $messages = array();
+
+            if ($stmt->rowCount() > 0) {
+                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    $messages[] = array(
+                        'user' => $row['username'],
+                        'since' => time() - $row['last_active'],
+                        'time' => $this->timeSince($row['last_active'])
+                    );
+                }
+            }
+            $stmt->closeCursor();
+
+            echo json_encode($messages);
+            exit;
+        }
+    }
+
+    private function loadNewMessages($reload = false) {
+        if ($reload || !empty($_POST['load']) && $_POST['load']) {
+
             $sqlstmt = '';
             $checkval = '';
-            if( ( $reload || !empty($_POST['all']) && $_POST['all'] == 'true' ) || empty($_SESSION['chat']['latest_id']) ){
+            if (( $reload || !empty($_POST['all']) && $_POST['all'] == 'true' ) || empty($_SESSION['chat']['latest_id'])) {
                 $sqlstmt = '( SELECT 
                                   *
                               FROM 
@@ -240,9 +221,8 @@ class Chat
                                   time DESC 
                               LIMIT 14 )
                               ORDER BY time ASC ';
-            
-            }else{
-              $sqlstmt = 'SELECT 
+            } else {
+                $sqlstmt = 'SELECT 
                                 *
                             FROM 
                                 chat
@@ -250,44 +230,41 @@ class Chat
                                 room = :room
                             AND
                                 id > :checkval ';
-            $checkval = $_SESSION['chat']['latest_id'];
+                $checkval = $_SESSION['chat']['latest_id'];
             }
             // Prepare to sql statement, and if no messages has been found, we check using the current time as it will only fetch messages from when the user joined.
             $stmt = $this->sql->prepare($sqlstmt);
-            
+
             //$checkval = ( ( $reload || !empty($_POST['all']) && $_POST['all'] == 'true' ) || empty($_SESSION['chat']['latest_id']) ? $_SESSION['chat']['latest_time']  : $_SESSION['chat']['latest_id'] );
-            
+
             $stmt->bindValue(':room', $_SESSION['chat']['room'], PDO::PARAM_STR);
-            if($checkval != ''){
+            if ($checkval != '') {
                 $stmt->bindValue(':checkval', $checkval, PDO::PARAM_INT);
             }
             $stmt->execute();
 
             // Create the messages array which we will send back to the user.
             $messages = array(
-                            'totalnew' => 0,
-                            'status' => false,
-                            'room' => $_SESSION['chat']['room']
-                        );
+                'totalnew' => 0,
+                'status' => false,
+                'room' => $_SESSION['chat']['room']
+            );
             $c = 0;
 
 
             // If there are any new messages, get 'em!
-            if( $stmt->rowCount() > 0 )
-            {
-                while( $row = $stmt->fetch(PDO::FETCH_ASSOC) )
-                {
-                    if( $_SESSION['chat']['filter'] && count($this->profanity) > 0 )
-                    {
-                        $row['message'] = preg_replace( '(' . implode( '|', $this->profanity ) . ')i', '[Censured]', $row['message'] );
+            if ($stmt->rowCount() > 0) {
+                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    if ($_SESSION['chat']['filter'] && count($this->profanity) > 0) {
+                        $row['message'] = preg_replace('(' . implode('|', $this->profanity) . ')i', '[Censured]', $row['message']);
                     }
 
                     $messages[] = array(
-                                    'user' => $row['by'],
-                                    'msg' => $row['message'],
-                                    'time' => date( 'H:i:s', $row['time'] ),
-                                    'highlight' => ($row['by'] != $_SESSION['chat']['username'] ? 'label-info' : 'label-success')
-                                );
+                        'user' => $row['by'],
+                        'msg' => $row['message'],
+                        'time' => date('H:i:s', $row['time']),
+                        'highlight' => ($row['by'] != $_SESSION['chat']['username'] ? 'label-info' : 'label-success')
+                    );
                     $_SESSION['chat']['latest_id'] = $row['id'];
                     $c++;
                 }
@@ -299,26 +276,25 @@ class Chat
 
             $messages['totalnew'] = $c;
             $_SESSION['chat']['last_check'] = time();
-		
-	    // If this is the first time the user quries for messages, we need to add the time to the session, so we know from when to look
-            if( empty($_SESSION['chat']['latest_time']) )
-            {
+
+            // If this is the first time the user quries for messages, we need to add the time to the session, so we know from when to look
+            if (empty($_SESSION['chat']['latest_time'])) {
                 $_SESSION['chat']['latest_time'] = time();
             }
+
+            $this->setActive();
 
             echo json_encode($messages);
             exit;
         }
     }
-    
-    public function sendMessage()
-    {
-        if( ( !empty($_POST['new']) && $_POST['new'] ) || !empty($_POST['message']) )
-        {
-            $message = $this->sanitize( $_POST['message'], 'purestring');
+
+    public function sendMessage() {
+        if ((!empty($_POST['new']) && $_POST['new'] ) || !empty($_POST['message'])) {
+            $message = $this->sanitize($_POST['message'], 'purestring');
 
             $stmt = $this->sql->prepare('INSERT INTO chat(`by`, `message`, `time`, `room`) VALUES(:byuser, :message, :time, :room)');
-            $stmt->bindValue(':byuser', $this->sanitize( $_SESSION['chat']['username'], 'purestring' ), PDO::PARAM_STR);
+            $stmt->bindValue(':byuser', $this->sanitize($_SESSION['chat']['username'], 'purestring'), PDO::PARAM_STR);
             $stmt->bindValue(':message', $message, PDO::PARAM_STR);
             $stmt->bindValue(':time', time(), PDO::PARAM_INT);
             $stmt->bindValue(':room', $_SESSION['chat']['room'], PDO::PARAM_STR);
@@ -329,16 +305,17 @@ class Chat
 
             $_SESSION['chat']['last_message'] = time();
 
-            echo json_encode( array(
-                                    'status'=>true,
-                                    'user' => $_SESSION['chat']['username'],
-                                    'msg' => $message,
-                                    'time' => date( 'H:i:s', time() ),
-                                    'highlight' => 'label-success'
-                                ) 
-                            );
-        }   
+            echo json_encode(array(
+                'status' => true,
+                'user' => $_SESSION['chat']['username'],
+                'msg' => $message,
+                'time' => date('H:i:s', time()),
+                'highlight' => 'label-success'
+                    )
+            );
+        }
     }
+
 }
 
 $chat = new Chat();
